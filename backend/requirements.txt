@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+pydantic>=2.7.0
+google-genai
+python-multipart
+python-dotenv
+httpx
+
+
+numpy
+fpdf2
+firebase-admin
+pypdf
+python-docx
+gunicorn

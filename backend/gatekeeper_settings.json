@@ -1,0 +1,9 @@
+{
+  "stream1_url": "https://generativelanguage.googleapis.com",
+  "stream1_key": "",
+  "stream2_url": "http://localhost:8001",
+  "stream2_key": "",
+  "routing_mode": "Failover",
+  "self_healing_enabled": true,
+  "self_healing_agent_url": ""
+}

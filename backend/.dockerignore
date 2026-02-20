@@ -1,0 +1,12 @@
+__pycache__
+venv
+.git
+.env
+.pytest_cache
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+policy_store.json
+evaluations_store.json
+settings_store.json

@@ -1,0 +1,39 @@
+{
+  "domains": {
+    "privacy": true,
+    "safety": true,
+    "security": true,
+    "fairness": true,
+    "compliance": true
+  },
+  "region": "Global",
+  "sensitivity": "Balanced",
+  "riskThreshold": "Warn All",
+  "minConfidence": 80,
+  "strictness": 50,
+  "guardrailAction": "Suggest",
+  "guardrailExplain": true,
+  "guardrailCite": false,
+  "sources": {
+    "prds": true,
+    "architecture": true,
+    "jira": false,
+    "api": false,
+    "prompts": true
+  },
+  "notifications": {
+    "email": true,
+    "slack": true,
+    "dashboard": true,
+    "triggers": {
+      "highRisk": true,
+      "conflict": true,
+      "blocked": true
+    }
+  },
+  "auditLevel": "Detailed",
+  "auditRetention": "90",
+  "aiReasoning": true,
+  "aiConflict": true,
+  "deploymentMode": "Production"
+}
