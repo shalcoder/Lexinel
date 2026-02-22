@@ -16,289 +16,97 @@ const TOUR_STEPS = [
         id: 1,
         route: '/dashboard',
         selector: '#dashboard-title',
-        badge: "Mission Control • 1/23",
-        title: "Agent Governance Hub",
-        desc: "Welcome to Lexinel. This is your unified control plane for autonomous agent governance. We ensure your AI fleet remains safe, ethical, and within regulatory boundaries.",
+        badge: "Control Center • 1/8",
+        title: "Lexinel AML Compliance Hub",
+        desc: "Welcome to Lexinel. This is your unified command center. At a glance, you can see active policies, total evaluations, and real-time violations detected. Everything feeds into this view.",
         icon: LayoutDashboard,
         color: "text-cyan-400",
         bg: "bg-cyan-500/10"
     },
     {
         id: 2,
-        route: '/dashboard',
-        selector: '#coverage-map-card', // NEW: Coverage Map
-        badge: "Overview • 2/23",
-        title: "Policy Coverage Map",
-        desc: "Visualize your governance posture. The radar chart shows real-time alignment with key frameworks like GDPR, SOC2, and Ethical AI standards.",
-        icon: Globe,
-        color: "text-indigo-400",
-        bg: "bg-indigo-500/10"
+        route: '/dashboard/policies',
+        selector: '#upload-policy-card',
+        badge: "N2L Synthesis • 2/8",
+        title: "Neural-to-Logic (N2L) Engine",
+        desc: "Traditionally, compliance rules take months to code. Here, you upload a regulatory PDF, and our N2L engine uses Gemini to instantly extract clauses and synthesize them into live enforcement rules.",
+        icon: FileText,
+        color: "text-blue-400",
+        bg: "bg-blue-500/10",
+        action: '#upload-policy-card',
+        interactiveAction: {
+            label: "Try Sample Policy",
+            target: "#try-sample-policy-btn"
+        },
+        duration: 3000
     },
     {
         id: 3,
         route: '/dashboard/policies',
-        selector: '#active-policies-list',
-        badge: "Governance • 3/23",
-        title: "Active Guardrails",
-        desc: "Every AI agent is governed by these live policies. This is where your organization's legal and safety requirements are translated into real-time enforcement rules.",
+        selector: '#rule-audit-log',
+        badge: "Governance • 3/8",
+        title: "Rule Audit & Hit Rates",
+        desc: "These are your live synthesized rules. Each card maps to a compliance framework (like BSA) and shows a live 'hit rate' giving you total visibility into how often a rule catches a violation.",
         icon: Shield,
-        color: "text-blue-400",
-        bg: "bg-blue-500/10",
-        interactiveAction: {
-            label: "Try Sample Policy",
-            target: "#try-sample-policy-btn"
-        }
+        color: "text-indigo-400",
+        bg: "bg-indigo-500/10"
     },
     {
         id: 4,
-        route: '/dashboard',
-        selector: '#tab-analytics',
-        badge: "Telemetry • 4/23",
-        title: "SRE Reliability Console",
-        desc: "Monitor per-token latency, error rates, and throughput. Lexinel tracks the heartbeat of your distributed AI infrastructure to prevent performance degradation.",
-        icon: Activity,
-        color: "text-indigo-400",
-        bg: "bg-indigo-500/10",
-        action: '#tab-analytics'
+        route: '/dashboard/proxy',
+        selector: '#sentinel-launch-btn',
+        badge: "Enforcement • 4/8",
+        title: "The Database Sentinel",
+        desc: "When launched, the Sentinel scans thousands of live transactions. When it detects a violation—like a smurfing pattern or an OFAC hit—it flags it instantly in real-time.",
+        icon: Zap,
+        color: "text-emerald-400",
+        bg: "bg-emerald-500/10",
+        action: '#sentinel-launch-btn'
     },
     {
         id: 5,
-        route: '/dashboard/proxy',
-        selector: '#stream-1-selector',
-        badge: "Integration • 5/23",
-        title: "Inline Interceptor (Stream 1 - Disconnected)",
-        desc: "Stream 1 provides real-time, synchronous protection. It intercepts prompts and responses, blocking PII leaks and non-compliant content instantly.",
-        icon: Zap,
-        color: "text-cyan-400",
-        bg: "bg-cyan-500/10",
-        action: '#stream-1-selector'
+        route: '/dashboard/evaluate',
+        selector: '#auto-sar-btn',
+        badge: "Reporting • 5/8",
+        title: "Auto-SAR Generation",
+        desc: "Violations require paperwork. Click 'Draft SAR' and Gemini steps in as a Senior Investigator to automatically draft a FinCEN-ready Suspicious Activity Report narrative, saving hours of manual work.",
+        icon: FileText,
+        color: "text-orange-400",
+        bg: "bg-orange-500/10",
+        action: '#auto-sar-btn'
     },
     {
         id: 6,
-        route: '/dashboard/proxy',
-        selector: '#proxy-wizard-step1-next', // NEW: Wizard Step 1
-        badge: "Setup • 6/23",
-        title: "Gateway Configuration",
-        desc: "Assign a unique ID to your AI Gateway. This identifier tags all audit logs and telemetry, ensuring traceability across your fleet.",
-        icon: Server,
-        color: "text-indigo-400",
-        bg: "bg-indigo-500/10",
-        action: '#proxy-wizard-step1-next'
+        route: '/dashboard/redteam',
+        selector: '#adversarial-hub-card',
+        badge: "Safety • 6/8",
+        title: "Adversarial Hub",
+        desc: "Security is built-in. Use the Adversarial Hub to red-team your own AI. Our deterministic PolicyGuard layer prevents prompt injection and blocks outputs before they happen.",
+        icon: TargetIcon,
+        color: "text-red-500",
+        bg: "bg-red-500/10"
     },
     {
         id: 7,
-        route: '/dashboard/proxy',
-        selector: '#proxy-wizard-step2-next', // NEW: Wizard Step 2
-        badge: "Setup • 7/23",
-        title: "Integration Pattern",
-        desc: "Select your stack. Lexinel generates drop-in SDK snippets for Python and Node.js to route traffic through the secure gateway.",
-        icon: Code2,
-        color: "text-emerald-400",
-        bg: "bg-emerald-500/10",
-        action: '#proxy-wizard-step2-next'
-    },
-    {
-        id: 8,
-        route: '/dashboard/proxy',
-        selector: '#finalize-gatekeeper-btn',
-        badge: "Integration • 8/23",
-        title: "Zero-Trust Activation",
-        desc: "Activating Stream 1 deploys our sub-10ms latency interceptor. Your agent is now protected by a cryptographic policy handshake for every interaction.",
-        icon: Shield,
-        color: "text-emerald-400",
-        bg: "bg-emerald-500/10",
-        action: '#finalize-gatekeeper-btn'
-    },
-    {
-        id: 9,
-        route: '/dashboard/proxy',
-        selector: '#stream-2-selector',
-        badge: "Reliability • 9/23",
-        title: "SLA Stability (Stream 2)",
-        desc: "Stream 2 focuses on long-term reliability. We ingest system heartbeats and model output logs to detect performance drift and ensure SLIs are maintained.",
-        icon: Server,
-        color: "text-purple-400",
-        bg: "bg-purple-500/10",
-        action: '#stream-2-selector'
-    },
-    {
-        id: 10,
-        route: '/dashboard/evaluate',
-        selector: '#run-evaluation-btn',
-        badge: "Forensics • 10/23",
-        title: "Deep Forensic Audit",
-        desc: "Let's run a Deep Audit. Our Gemini-powered engine debates itself to find edge cases and hidden policy contradictions in your system spec.",
-        icon: Zap,
-        color: "text-orange-400",
-        bg: "bg-orange-500/10",
-        action: '#run-evaluation-btn',
-        interactiveAction: {
-            label: "Try Sample PRD",
-            target: "#try-sample-prd-btn"
-        },
-        duration: 45000 // Large duration to wait for analysis
-    },
-    {
-        id: 11,
-        route: '/dashboard/evaluate',
-        selector: '#readiness-scorecard',
-        badge: "Analysis • 11/23",
-        title: "Compliance Readiness Results",
-        desc: "The audit is complete. Lexinel has generated a comprehensive scorecard mapping your agent's behavior against corporate policy and legal requirements.",
-        icon: FileText,
-        color: "text-green-500",
-        bg: "bg-green-500/10"
-    },
-    {
-        id: 12,
-        route: '/dashboard/evaluate',
-        selector: '#tab-executive',
-        badge: "Analysis • 12/23",
-        title: "Executive Summary",
-        desc: "High-level verdict and categorical risk assessment. This tab provides a binary 'Go/No-Go' status for deployment based on legal reasoning.",
-        icon: CheckCircle,
-        color: "text-emerald-500",
-        bg: "bg-emerald-500/10",
-        action: '#tab-executive'
-    },
-    {
-        id: 13,
-        route: '/dashboard/evaluate',
-        selector: '#section-risk',
-        badge: "Analysis • 13/23",
-        title: "Failure Class Simulation",
-        desc: "We simulate catastrophic scenarios—from prompt injection to data exfiltration—and quantify the financial and reputational exposure for your business.",
+        route: '/dashboard/redteam',
+        selector: '#system-freeze-btn',
+        badge: "Control • 7/8",
+        title: "System Safety Freeze",
+        desc: "In the event of a critical breach or policy drift, the Safety Freeze button allows compliance officers to remotely lock the entire AI agent instantly with zero drift.",
         icon: ShieldAlert,
         color: "text-red-400",
         bg: "bg-red-500/10"
     },
     {
-        id: 14,
-        route: '/dashboard/evaluate',
-        selector: '#tab-proof',
-        badge: "Analysis • 14/23",
-        title: "Remedy & Evidence Log",
-        desc: "Transparency is key. This tab contains raw trace evidence snippets for every violation, alongside immutable cryptographic hashes for audit-readiness.",
-        icon: FileText,
-        color: "text-blue-400",
-        bg: "bg-blue-500/10",
-        action: '#tab-proof'
-    },
-    {
-        id: 15,
-        route: '/dashboard/remediate',
-        selector: '#auto-remediate-btn',
-        badge: "Resilience • 15/23",
-        title: "Automated Patching",
-        desc: "Vulnerabilities found? The Remediation Engine generates production-ready library code and rewritten system instructions to patch gaps instantly.",
-        icon: Wrench,
-        color: "text-cyan-500",
-        bg: "bg-cyan-500/10",
-        action: '#auto-remediate-btn',
-        interactiveAction: {
-            label: "Try Sample Remediate",
-            target: "#try-sample-remediation-btn"
-        },
-        duration: 15000 // wait for remediation generation
-    },
-    {
-        id: 16,
-        route: '/dashboard/remediate',
-        selector: '#remediation-tabs',
-        badge: "Resilience • 16/23",
-        title: "Explainable Remediation",
-        desc: "Lexinel explains precisely HOW the fix solves the risk. We provide a logic graph and code-level walkthrough for the generated guardrails.",
-        icon: Lightbulb,
-        color: "text-indigo-400",
-        bg: "bg-indigo-500/10"
-    },
-    {
-        id: 17,
-        route: '/dashboard/redteam',
-        selector: '#initiate-attack-btn',
-        badge: "Adversarial • 17/23",
-        title: "Offensive Security Lab",
-        desc: "Now we test. We launch 50+ adversarial attacks—including jailbreaks and prompt-probing—to see if the new guardrails hold under pressure.",
-        icon: TargetIcon,
-        color: "text-red-500",
-        bg: "bg-red-500/10",
-        action: '#initiate-attack-btn',
-        interactiveAction: {
-            label: "Try Sample Attack",
-            target: "#try-sample-red-team-btn"
-        },
-        duration: 25000 // wait for red team attack simulation
-    },
-    {
-        id: 18,
-        route: '/dashboard/redteam',
-        selector: '#red-team-logs',
-        badge: "Adversarial • 18/23",
-        title: "Real-time Attack Feed",
-        desc: "Watch the 'Debate Protocol'. Our red-team engine attempts to bypass defenses while the Guardrail Interceptor blocks malicious intent in real-time.",
-        icon: Activity,
-        color: "text-orange-500",
-        bg: "bg-orange-500/10"
-    },
-    {
-        id: 19,
-        route: '/dashboard/monitor',
-        selector: '#audit-log-stream',
-        badge: "Visibility • 19/23",
-        title: "Live Safety Stream",
-        desc: "Final visibility layer. Monitor the production interceptor as it executes PASS/BLOCK decisions on live traffic with 100% auditability.",
-        icon: Activity,
-        color: "text-indigo-500",
-        bg: "bg-indigo-500/10"
-    },
-    {
-        id: 20,
-        route: '/dashboard/sla',
-        selector: '#gemini-risk-card',
-        badge: "Intelligence • 20/23",
-        title: "Predictive SLA Monitoring",
-        desc: "We look ahead. Gemini analyzes historical latency and throughput to forecast risk spikes and breaches before they impact your end-users.",
+        id: 8,
+        route: '/dashboard',
+        selector: '#chat-widget-trigger',
+        badge: "Assist • 8/8",
+        title: "Ask Lexinel",
+        desc: "Finally, Lexinel is conversational. Ask complex compliance questions, and the AI will respond using only the exact policy context you've uploaded (RAG). Compliance, at the speed of thought.",
         icon: Brain,
         color: "text-purple-400",
-        bg: "bg-purple-500/10",
-        interactiveAction: {
-            label: "Try Sample SLA",
-            target: "#try-sample-sla-btn"
-        }
-    },
-    {
-        id: 21,
-        route: '/dashboard/sla',
-        selector: '#risk-factors-section',
-        badge: "Intelligence • 21/23",
-        title: "Risk Factor Analysis",
-        desc: "Lexinel identifies the causal drivers for SLA breaches—whether it's model versioning, prompt length, or geographic traffic spikes.",
-        icon: Zap,
-        color: "text-cyan-500",
-        bg: "bg-cyan-500/10"
-    },
-    {
-        id: 22,
-        route: '/dashboard/sla',
-        selector: '#forecast-section',
-        badge: "Intelligence • 22/23",
-        title: "Future Output Forecast",
-        desc: "Projected latency and success rates for the next hour. This allows for proactive infrastructure scaling and model fallback strategies.",
-        icon: TrendingUp,
-        color: "text-emerald-500",
-        bg: "bg-emerald-500/10"
-    },
-    {
-        id: 23,
-        route: '/dashboard',
-        selector: '#dashboard-title',
-        badge: "Certified • 23/23",
-        title: "Governance Mastery",
-        desc: "Mission Accomplished. Your AI fleet is now robust, compliant, and ready for scale. You have completed the full Lexinel Governance Cycle.",
-        icon: CheckCircle,
-        color: "text-green-500",
-        bg: "bg-green-500/10",
-        actionBtn: "Finish Tour"
+        bg: "bg-purple-500/10"
     }
 ];
 
