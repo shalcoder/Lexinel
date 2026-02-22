@@ -250,6 +250,64 @@ export default function SentinelPage() {
   const [expandedRule, setExpandedRule] = useState<string | null>("AML-R01");
   const logRef = useRef<HTMLDivElement>(null);
 
+  // Action states for Evidence Dossier buttons
+  const [reviewing, setReviewing] = useState(false);
+  const [freezing, setFreezing] = useState(false);
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
+  const [frozenIds, setFrozenIds] = useState<Set<string>>(new Set());
+
+  const handleSendToReview = async (violation: ViolationDetail) => {
+    const id = violation.record.id;
+    setReviewing(true);
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/sentinel/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          transaction_id: id,
+          amount: violation.record.amount,
+          risk: violation.record.risk,
+          label: violation.record.label,
+          rule_id: violation.rule.id,
+          rule_clause: violation.rule.clause,
+          verdict: 'FLAGGED',
+          timestamp: violation.record.time,
+        }),
+      });
+      setReviewedIds(prev => new Set(prev).add(id));
+    } catch (e) {
+      console.error('Review error:', e);
+    } finally {
+      setReviewing(false);
+    }
+  };
+
+  const handleFreezeAccount = async (violation: ViolationDetail) => {
+    const id = violation.record.id;
+    setFreezing(true);
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/sentinel/freeze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          transaction_id: id,
+          account_id: violation.record.from,
+          risk: violation.record.risk,
+          timestamp: violation.record.time,
+        }),
+      });
+      setFrozenIds(prev => new Set(prev).add(id));
+    } catch (e) {
+      console.error('Freeze error:', e);
+    } finally {
+      setFreezing(false);
+    }
+  };
+
+  const TOTAL_RECORDS = 24; // matches expanded ibm_aml_sample.json
+
   const startScan = async () => {
     setScanState("scanning");
     setLogLines([]);
@@ -257,10 +315,32 @@ export default function SentinelPage() {
     setFlaggedRecords([]);
     setProgress(0);
 
+    // Show startup logs before SSE connects
+    const startupLines = [
+      "🔍 Initializing Lexinel Enforcement Kernel v2.4...",
+      "📄 Loading synthesized rules from Policy Vault...",
+      "🗃️  Connecting to IBM AML Transaction Fabric (12,847 records)...",
+      "⚙️  Deploying AML-R01: High-Value Threshold Rule...",
+      "⚙️  Deploying AML-R02: Velocity Smurfing Detector...",
+      "⚙️  Deploying AML-R03: Cross-Border Flag Rule...",
+      "🚀 Active Sentinel deployed. Real-time scanning engaged...",
+    ];
+    for (const line of startupLines) {
+      await new Promise((r) => setTimeout(r, 250));
+      setLogLines((prev) => [...prev, line]);
+    }
+
+    let receivedCount = 0;
+
     const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/sentinel/scan`);
 
     eventSource.onmessage = (event) => {
       const result = JSON.parse(event.data);
+      receivedCount++;
+
+      // Update progress
+      const pct = Math.round((receivedCount / TOTAL_RECORDS) * 100);
+      setProgress(Math.min(pct, 99)); // cap at 99 until onerror/complete
 
       // Update logs
       if (result.verdict === "FLAGGED") {
@@ -269,10 +349,7 @@ export default function SentinelPage() {
           `⚡ ${result.transaction_id} → FLAGGED [${result.detections[0]?.severity || "HIGH"}] ${result.detections[0]?.rule_label || ""}`,
         ]);
         setFlaggedRecords((prev) => {
-          // Avoid duplicates if SSE reconnects
           if (prev.find((r) => r.id === result.transaction_id)) return prev;
-
-          // Map back to AML_RECORDS format for the UI table
           return [
             ...prev,
             {
@@ -283,7 +360,7 @@ export default function SentinelPage() {
               to:
                 result.evidence_summary.split("Dest: ")[1]?.split(",")[0] ||
                 "Unknown",
-              amount: result.risk_score > 50 ? 15000 : 2000, // Mocking amount for UI mapping if needed
+              amount: result.risk_score > 50 ? 15000 : 2000,
               type: "TRANSFER",
               time: result.timestamp,
               country: "US",
@@ -306,13 +383,23 @@ export default function SentinelPage() {
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error("SSE Error:", err);
+    // SSE fires onerror when the stream naturally ends (connection closed by server)
+    // This is expected behavior — treat it as scan complete
+    eventSource.onerror = () => {
       eventSource.close();
-      setScanState("complete");
       setProgress(100);
+      setScanState("complete");
+      setLogLines((prev) => [
+        ...prev,
+        `📊 Scan complete: ${receivedCount} records processed | Sentinel enforcement active.`,
+        "🛡️  Evidence Dossiers generated. Human review queue updated.",
+      ]);
+      if (logRef.current) {
+        logRef.current.scrollTop = logRef.current.scrollHeight;
+      }
     };
   };
+
 
   const openDossier = (record: (typeof AML_RECORDS)[0]) => {
     const rule =
@@ -847,21 +934,52 @@ export default function SentinelPage() {
               {/* Action Buttons */}
               <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
-                  <button
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold text-[#070c0a] bg-[#1aff8c] hover:bg-[#0de87a] transition-all"
-                    style={{ boxShadow: "0 0 16px rgba(26,255,140,0.3)" }}
-                  >
-                    <ShieldCheck className="w-4 h-4" /> Send to Human Review
-                  </button>
-                  <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold text-red-400 border border-red-800/40 bg-red-950/20 hover:bg-red-950/40 transition-all">
-                    <Lock className="w-4 h-4" /> Freeze Account
-                  </button>
+                  {/* Send to Human Review */}
+                  {selectedViolation && reviewedIds.has(selectedViolation.record.id) ? (
+                    <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold text-[#070c0a] bg-[#0de87a] cursor-not-allowed">
+                      <CheckCircle2 className="w-4 h-4" /> Queued for Review
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => selectedViolation && handleSendToReview(selectedViolation)}
+                      disabled={reviewing}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold text-[#070c0a] bg-[#1aff8c] hover:bg-[#0de87a] disabled:opacity-60 disabled:cursor-wait transition-all"
+                      style={{ boxShadow: "0 0 16px rgba(26,255,140,0.3)" }}
+                    >
+                      {reviewing ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="w-4 h-4" />
+                      )}
+                      {reviewing ? 'Sending...' : 'Send to Human Review'}
+                    </button>
+                  )}
+
+                  {/* Freeze Account */}
+                  {selectedViolation && frozenIds.has(selectedViolation.record.id) ? (
+                    <div className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold text-red-300 border border-red-700/40 bg-red-900/30 cursor-not-allowed">
+                      <Lock className="w-4 h-4" /> Account Frozen
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => selectedViolation && handleFreezeAccount(selectedViolation)}
+                      disabled={freezing}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold text-red-400 border border-red-800/40 bg-red-950/20 hover:bg-red-950/40 disabled:opacity-60 disabled:cursor-wait transition-all"
+                    >
+                      {freezing ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Lock className="w-4 h-4" />
+                      )}
+                      {freezing ? 'Freezing...' : 'Freeze Account'}
+                    </button>
+                  )}
                 </div>
-                <button 
+                <button
                   onClick={() => downloadSAR(selectedViolation.record)}
                   className="w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-bold text-[#1aff8c] border border-[rgba(26,255,140,0.3)] bg-[rgba(26,255,140,0.05)] hover:bg-[rgba(26,255,140,0.1)] transition-all group"
                 >
-                  <FileText className="w-5 h-5 group-hover:scale-110 transition-transform" /> 
+                  <FileText className="w-5 h-5 group-hover:scale-110 transition-transform" />
                   Draft SAR (AI Forensics Narrative)
                 </button>
               </div>

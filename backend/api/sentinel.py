@@ -72,3 +72,62 @@ async def generate_sar(violation: dict = Body(...)):
     except Exception as e:
         print(f"[Sentinel API] SAR Generation Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/review")
+async def send_to_human_review(data: dict = Body(...)):
+    """
+    Marks a violation as 'sent to human review' in the HITL queue.
+    """
+    violation_id = data.get("id")
+    if not violation_id:
+        raise HTTPException(status_code=400, detail="Missing violation id")
+
+    # Find and update the violation tag
+    violations = policy_db.get_hitl_violations()
+    for v in violations:
+        if v.get("id") == violation_id or v.get("transaction_id") == violation_id:
+            v["review_status"] = "HUMAN_REVIEW"
+            v["reviewed_at"] = __import__("datetime").datetime.now().isoformat()
+            return {"status": "queued_for_review", "id": violation_id}
+
+    # If not in HITL queue yet (e.g. flagged during scan), add it
+    policy_db.add_hitl_violation({
+        "id": violation_id,
+        "transaction_id": violation_id,
+        "review_status": "HUMAN_REVIEW",
+        "verdict": "FLAGGED",
+        "reviewed_at": __import__("datetime").datetime.now().isoformat(),
+        **{k: v for k, v in data.items() if k != "id"},
+    })
+    return {"status": "queued_for_review", "id": violation_id}
+
+
+@router.post("/freeze")
+async def freeze_account(data: dict = Body(...)):
+    """
+    Freezes an account associated with a violation.
+    Tags the HITL violation with frozen status.
+    """
+    violation_id = data.get("id")
+    account_id   = data.get("account_id", "UNKNOWN")
+    if not violation_id:
+        raise HTTPException(status_code=400, detail="Missing violation id")
+
+    violations = policy_db.get_hitl_violations()
+    for v in violations:
+        if v.get("id") == violation_id or v.get("transaction_id") == violation_id:
+            v["review_status"] = "ACCOUNT_FROZEN"
+            v["frozen_account"] = account_id
+            v["frozen_at"] = __import__("datetime").datetime.now().isoformat()
+            return {"status": "frozen", "account_id": account_id}
+
+    policy_db.add_hitl_violation({
+        "id": violation_id,
+        "transaction_id": violation_id,
+        "review_status": "ACCOUNT_FROZEN",
+        "frozen_account": account_id,
+        "frozen_at": __import__("datetime").datetime.now().isoformat(),
+        **{k: v for k, v in data.items() if k != "id"},
+    })
+    return {"status": "frozen", "account_id": account_id}

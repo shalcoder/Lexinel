@@ -103,6 +103,7 @@ export default function RedTeamPage() {
     const [runState, setRunState] = useState<'idle' | 'running' | 'complete'>('idle');
     const [logs, setLogs] = useState<string[]>([]);
     const [verdict, setVerdict] = useState<'RESISTANT' | 'VULNERABLE' | 'PARTIAL' | null>(null);
+    const [fullReport, setFullReport] = useState<any>(null);
     const [results, setResults] = useState<Array<{ scenario: string; verdict: string; time: string }>>([]);
 
     const runAttack = async () => {
@@ -144,11 +145,11 @@ export default function RedTeamPage() {
                                     setLogs(prev => [...prev, data.log]);
                                 }
                                 if (data.report) {
+                                    setFullReport(data.report);
                                     const score = data.report.overall_resilience_score || 0;
                                     const v = score > 80 ? 'RESISTANT' : score > 50 ? 'PARTIAL' : 'VULNERABLE';
                                     setVerdict(v as any);
-                                    
-                                    // Restore history tracking
+
                                     setResults(prev => [{
                                         scenario: (selectedScenario as any).name,
                                         verdict: v,
@@ -191,134 +192,192 @@ export default function RedTeamPage() {
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Attack Selector */}
-                <div className="space-y-3">
-                    <h2 className="text-xs font-bold text-red-400/80 uppercase tracking-widest flex items-center gap-2">
-                        <Target className="w-3.5 h-3.5" /> Attack Scenarios
-                    </h2>
-                    {ATTACK_SCENARIOS.map(s => (
-                        <button
-                            key={s.id}
-                            onClick={() => { setSelectedScenario(s); setRunState('idle'); setLogs([]); setVerdict(null); }}
-                            className={`w-full text-left p-4 rounded-xl border transition-all duration-200 ${selectedScenario?.id === s.id
-                                ? 'border-red-700/50 bg-red-950/20 shadow-[0_0_12px_rgba(239,68,68,0.1)]'
-                                : 'glass-card hover:border-red-800/30'
-                                }`}
-                        >
-                            <div className="flex items-start justify-between mb-1">
-                                <p className="text-sm font-bold text-white">{s.name}</p>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${severityColor(s.severity)}`}>{s.severity}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* ── LEFT SIDEBAR: SELECTOR & HISTORY (1/4) ── */}
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="space-y-3">
+                        <h2 className="text-xs font-bold text-red-400/80 uppercase tracking-widest flex items-center gap-2">
+                            <Target className="w-3.5 h-3.5" /> Scenarios
+                        </h2>
+                        <div className="space-y-2">
+                            {ATTACK_SCENARIOS.map(s => (
+                                <button
+                                    key={s.id}
+                                    onClick={() => { setSelectedScenario(s); setRunState('idle'); setLogs([]); setVerdict(null); setFullReport(null); }}
+                                    className={`w-full text-left p-3 rounded-xl border transition-all duration-200 ${selectedScenario?.id === s.id
+                                        ? 'border-red-700/50 bg-red-950/20 shadow-[0_0_12px_rgba(239,68,68,0.1)]'
+                                        : 'glass-card hover:border-red-800/30'
+                                        }`}
+                                >
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className="text-xs font-bold text-white uppercase tracking-tight">{s.name}</p>
+                                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${severityColor(s.severity)}`}>{s.severity}</span>
+                                    </div>
+                                    <p className="text-[10px] text-[rgba(255,255,255,0.35)] line-clamp-1">{s.description}</p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {results.length > 0 && (
+                        <div className="space-y-3 pt-4 border-t border-white/5">
+                            <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Recent Tests</h3>
+                            <div className="space-y-2">
+                                {results.map((r, i) => (
+                                    <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-white/2 border border-white/5">
+                                        <span className="text-[10px] text-white/50 truncate w-24">{r.scenario}</span>
+                                        <span className={`text-[10px] font-bold ${verdictColor(r.verdict)}`}>{r.verdict}</span>
+                                    </div>
+                                ))}
                             </div>
-                            <p className="text-xs text-[rgba(255,255,255,0.35)] mb-2">{s.description}</p>
-                            <p className="text-[10px] text-[rgba(255,255,255,0.25)] uppercase tracking-widest">{s.category}</p>
-                        </button>
-                    ))}
+                        </div>
+                    )}
                 </div>
 
-                {/* Attack Console */}
-                <div className="lg:col-span-2 space-y-4">
+                {/* ── RIGHT MAIN CONSOLE (3/4) ── */}
+                <div className="lg:col-span-3 space-y-6">
                     {selectedScenario ? (
                         <>
-                            <div className="glass-card rounded-xl p-5 border border-red-800/20">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div>
-                                        <h3 className="text-base font-bold text-white">{selectedScenario.name}</h3>
-                                        <p className="text-xs text-[rgba(255,255,255,0.4)]">{selectedScenario.category}</p>
-                                    </div>
-                                    <button
-                                        onClick={runAttack}
-                                        disabled={runState === 'running'}
-                                        className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold text-[#070c0a] bg-red-500 hover:bg-red-400 disabled:opacity-50 transition-all"
-                                        style={{ boxShadow: '0 0 16px rgba(239,68,68,0.3)' }}
-                                    >
-                                        {runState === 'running' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                                        {runState === 'running' ? 'Attacking...' : 'Launch Attack'}
-                                    </button>
-                                </div>
-                                <div className="bg-[rgba(26,255,140,0.03)] border border-[rgba(26,255,140,0.08)] rounded-lg p-3">
-                                    <p className="text-[10px] text-[rgba(255,255,255,0.3)] uppercase tracking-widest mb-1">Attack Vector</p>
-                                    <code className="text-xs font-mono text-amber-400">{selectedScenario.vector}</code>
-                                </div>
-                            </div>
-
-                            {/* Terminal */}
-                            <div className="glass-card rounded-xl overflow-hidden">
-                                <div className="flex items-center gap-3 px-4 py-3 border-b border-[rgba(26,255,140,0.08)]">
-                                    <div className="flex gap-1.5">
-                                        <div className="w-3 h-3 rounded-full bg-red-500/70" />
-                                        <div className="w-3 h-3 rounded-full bg-amber-500/70" />
-                                        <div className="w-3 h-3 rounded-full bg-[#1aff8c]/70" />
-                                    </div>
-                                    <span className="text-xs font-mono text-red-400/60 ml-1">lexinel.redteam — adversarial-sim</span>
-                                    {runState === 'running' && (
-                                        <div className="ml-auto text-[10px] text-red-400 animate-pulse flex items-center gap-1">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-red-500" />attacking
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="h-52 overflow-y-auto bg-[#030806] p-4 font-mono text-xs space-y-1">
-                                    {logs.length === 0 ? (
-                                        <p className="text-red-900">{'>'} Select a scenario and launch attack to begin...</p>
-                                    ) : (
-                                        logs.map((line, i) => (
-                                            <p key={i} className={
-                                                line.includes('BLOCKED') || line.includes('DETECTED') ? 'text-[#1aff8c]' :
-                                                    line.includes('VULNERABILITY') || line.includes('PARTIAL') ? 'text-amber-400' :
-                                                        line.includes('TRIGGERED') || line.includes('🚨') ? 'text-red-400' :
-                                                            'text-[rgba(26,255,140,0.5)]'
-                                            }>
-                                                {line}
-                                            </p>
-                                        ))
-                                    )}
-                                    {runState === 'running' && <p className="text-red-400 animate-pulse">▋</p>}
-                                </div>
-                            </div>
-
-                            {/* Verdict */}
-                            {verdict && (
-                                <div className={`glass-card rounded-xl p-5 border ${verdictColor(verdict)}`}>
-                                    <div className="flex items-center gap-3">
-                                        {verdict === 'RESISTANT' ? <Shield className="w-6 h-6 text-[#1aff8c]" /> :
-                                            verdict === 'PARTIAL' ? <AlertTriangle className="w-6 h-6 text-amber-400" /> :
-                                                <X className="w-6 h-6 text-red-400" />}
+                            {/* Launch Header & Stats Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="md:col-span-2 glass-card rounded-xl p-5 border border-red-800/20">
+                                    <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-lg font-bold">Red Team Verdict: {verdict}</p>
-                                            <p className="text-sm text-[rgba(255,255,255,0.5)]">
-                                                {verdict === 'RESISTANT' ? 'Policy enforcement successfully blocked the attack' :
-                                                    verdict === 'PARTIAL' ? 'Partial gap detected — policy update recommended' :
-                                                        'Critical policy gap found — immediate remediation needed'}
-                                            </p>
+                                            <h3 className="text-lg font-bold text-white">{selectedScenario.name}</h3>
+                                            <p className="text-xs text-[rgba(255,255,255,0.4)] uppercase tracking-widest mb-4">{selectedScenario.category}</p>
+                                            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                                                <p className="text-[9px] text-red-400 uppercase font-bold tracking-widest mb-1">Payload Vector</p>
+                                                <code className="text-[11px] font-mono text-white/80">{selectedScenario.vector}</code>
+                                            </div>
                                         </div>
+                                        <button
+                                            onClick={runAttack}
+                                            disabled={runState === 'running'}
+                                            className="ml-6 flex-shrink-0 flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-500 disabled:opacity-50 transition-all group overflow-hidden relative uppercase tracking-widest"
+                                            style={{ boxShadow: '0 0 20px rgba(239,68,68,0.15)' }}
+                                        >
+                                            <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            {runState === 'running' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                                            <span className="relative z-10">{runState === 'running' ? 'Simulating...' : 'Launch Attack'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Resilience Gauge */}
+                                <div className="glass-card rounded-xl p-5 border border-white/5 flex flex-col items-center justify-center text-center">
+                                    <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] mb-3">Resilience Score</p>
+                                    <div className="relative w-24 h-24 mb-2">
+                                        <svg className="w-24 h-24 transform -rotate-90">
+                                            <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/5" />
+                                            <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent"
+                                                strokeDasharray={251}
+                                                strokeDashoffset={251 - (251 * (fullReport?.overall_resilience_score || 0)) / 100}
+                                                className={`transition-all duration-1000 ${verdict === 'RESISTANT' ? 'text-[#1aff8c]' : 'text-red-500'}`}
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <span className="text-2xl font-bold font-mono text-white">{fullReport?.overall_resilience_score || 0}</span>
+                                        </div>
+                                    </div>
+                                    <p className={`text-[10px] font-bold uppercase tracking-widest ${verdictColor(verdict || 'IDLE')}`}>
+                                        {verdict || 'READY'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Middle Row: Terminal & Critical Findings */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Terminal */}
+                                <div className="glass-card rounded-xl overflow-hidden border border-white/5">
+                                    <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5 bg-black/40">
+                                        <div className="flex gap-1">
+                                            <div className="w-2 h-2 rounded-full bg-red-500/50" />
+                                            <div className="w-2 h-2 rounded-full bg-amber-500/50" />
+                                            <div className="w-2 h-2 rounded-full bg-[#1aff8c]/50" />
+                                        </div>
+                                        <span className="text-[9px] font-mono text-white/30 ml-2 uppercase">Adversarial Simulation Stream</span>
+                                    </div>
+                                    <div className="h-44 overflow-y-auto bg-[#030806] p-4 font-mono text-[10px] space-y-1">
+                                        {logs.length === 0 ? (
+                                            <p className="text-red-900/50 italic">{">"} Awaiting deployment...</p>
+                                        ) : (
+                                            logs.map((line, i) => <p key={i} className="text-[#1aff8c]/60">{line}</p>)
+                                        )}
+                                        {runState === 'running' && <p className="text-red-400 animate-pulse">▋</p>}
+                                    </div>
+                                </div>
+
+                                {/* Verdict / Critical Section */}
+                                <div className="space-y-4">
+                                    {fullReport?.critical_finding ? (
+                                        <div className="h-full glass-card rounded-xl p-5 border border-red-500/20 bg-red-950/5 flex flex-col">
+                                            <div className="flex items-center gap-2 text-red-400 mb-3">
+                                                <AlertTriangle className="w-4 h-4" />
+                                                <span className="text-[10px] font-bold uppercase tracking-widest">Primary Vulnerability</span>
+                                            </div>
+                                            <p className="text-xs text-white/80 leading-relaxed font-medium">
+                                                {fullReport.critical_finding}
+                                            </p>
+                                            <div className="mt-auto pt-4 flex gap-2">
+                                                <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-500 text-[8px] font-bold uppercase">Critical Impact</span>
+                                                <span className="px-2 py-0.5 rounded-full bg-white/5 text-white/40 text-[8px] font-bold uppercase">Exploit Verified</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="h-full glass-card rounded-xl flex items-center justify-center p-8 border border-dashed border-white/5 text-center">
+                                            <div>
+                                                <Shield className="w-8 h-8 text-white/5 mx-auto mb-3" />
+                                                <p className="text-[10px] text-white/20 uppercase tracking-widest">Awaiting Analysis</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Detailed Report: Grid Layout */}
+                            {fullReport && (
+                                <div className="space-y-4 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                                    <div className="flex items-center gap-3 mb-2 px-1">
+                                        <h2 className="text-xs font-bold text-white uppercase tracking-[0.2em]">Forensics Dossier</h2>
+                                        <div className="h-px flex-1 bg-white/5" />
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {fullReport.attack_vectors?.map((vector: any, idx: number) => (
+                                            <div key={idx} className="glass-card rounded-xl p-4 border border-white/5 hover:bg-white/2 transition-colors">
+                                                <div className="flex items-start justify-between mb-3 pb-3 border-b border-white/5">
+                                                    <div>
+                                                        <h4 className="text-sm font-bold text-white mb-0.5">{vector.name}</h4>
+                                                        <p className="text-[9px] text-[rgba(26,255,140,0.6)] font-mono uppercase tracking-[0.1em]">{vector.category}</p>
+                                                    </div>
+                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${vector.severity_score > 70 ? 'text-red-400 border-red-500/20 bg-red-400/5' : 'text-amber-400 border-amber-500/20 bg-amber-400/5'
+                                                        }`}>
+                                                        {vector.severity_score}%
+                                                    </span>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <p className="text-[9px] text-white/20 uppercase font-bold tracking-widest mb-1 font-mono">Technical Method</p>
+                                                        <p className="text-[11px] text-white/60 leading-relaxed italic">{vector.method}</p>
+                                                    </div>
+                                                    <div className="p-2 rounded-lg bg-[#1aff8c]/5 border border-[#1aff8c]/10 text-center">
+                                                        <p className="text-[9px] text-[#1aff8c] uppercase font-bold tracking-widest mb-1">Recommended Fix</p>
+                                                        <p className="text-[11px] text-[rgba(26,255,140,0.85)] leading-tight">{vector.mitigation_suggestion}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}
                         </>
                     ) : (
-                        <div className="glass-card rounded-xl flex items-center justify-center h-64 border border-dashed border-[rgba(255,255,255,0.1)]">
-                            <div className="text-center">
-                                <Flame className="w-10 h-10 text-red-900 mx-auto mb-3" />
-                                <p className="text-[rgba(255,255,255,0.3)]">Select an attack scenario to begin</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Results History */}
-                    {results.length > 0 && (
-                        <div className="glass-card rounded-xl overflow-hidden">
-                            <div className="px-4 py-3 border-b border-[rgba(26,255,140,0.08)]">
-                                <h3 className="text-sm font-bold text-white">Attack History</h3>
-                            </div>
-                            <div className="divide-y divide-[rgba(255,255,255,0.04)]">
-                                {results.map((r, i) => (
-                                    <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                                        <div className={`w-2 h-2 rounded-full ${r.verdict === 'RESISTANT' ? 'bg-[#1aff8c]' : r.verdict === 'PARTIAL' ? 'bg-amber-400' : 'bg-red-400'}`} />
-                                        <span className="text-sm text-[rgba(255,255,255,0.6)] flex-1">{r.scenario}</span>
-                                        <span className={`text-xs font-bold ${r.verdict === 'RESISTANT' ? 'text-[#1aff8c]' : r.verdict === 'PARTIAL' ? 'text-amber-400' : 'text-red-400'}`}>{r.verdict}</span>
-                                        <span className="text-xs text-[rgba(255,255,255,0.3)] font-mono ml-3">{r.time}</span>
-                                    </div>
-                                ))}
+                        <div className="h-[500px] glass-card rounded-2xl flex items-center justify-center border border-dashed border-white/10 text-center">
+                            <div className="animate-in fade-in zoom-in duration-500">
+                                <div className="w-16 h-16 rounded-full bg-red-500/5 border border-red-500/10 flex items-center justify-center mx-auto mb-6">
+                                    <Flame className="w-8 h-8 text-red-900/40" />
+                                </div>
+                                <h2 className="text-xl font-bold text-white/60 mb-2">Engage Red Team</h2>
+                                <p className="text-sm text-white/20 max-w-sm mx-auto">Select a scenario from the sidebar and deploy the adversarial simulation to test policy resilience.</p>
                             </div>
                         </div>
                     )}

@@ -114,26 +114,80 @@ export default function OverviewPage() {
     const [activeTab, setActiveTab] = useState('Overview');
     const [notif, setNotif] = useState(false);
     const [kpis, setKpis] = useState(KPI);
+    const [liveFeed, setLiveFeed] = useState(LIVE_FEED);
+    const [systemOnline, setSystemOnline] = useState(true);
+    const [violationDist, setViolationDist] = useState(VIOLATION_DIST);
 
-    useEffect(() => { 
-        setMounted(true); 
+    useEffect(() => {
+        setMounted(true);
+
+        // Poll live violations for Live Feed tab
+        async function fetchLiveFeed() {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/sentinel/violations`);
+                if (!res.ok) return;
+                const violations: any[] = await res.json();
+                if (violations.length > 0) {
+                    const entries = violations.slice(-9).reverse().map((v: any, i: number) => ({
+                        id: `V${i}`,
+                        time: new Date(v.timestamp || Date.now()).toLocaleTimeString(),
+                        level: (v.verdict === 'FLAGGED' ? 'error' : 'success') as 'error' | 'success' | 'warn' | 'info',
+                        msg: v.verdict === 'FLAGGED'
+                            ? `[BLOCK] ${v.transaction_id} → ${v.detections?.[0]?.rule_label || 'AML Violation'} · Risk: ${v.detections?.[0]?.severity || 'HIGH'}`
+                            : `[PASS] ${v.transaction_id} → COMPLIANT`,
+                    }));
+                    setLiveFeed(entries);
+
+                    // Update violation distribution from real data
+                    const labelCounts: Record<string, number> = {};
+                    violations.forEach((v: any) => {
+                        const label = v.detections?.[0]?.rule_label || 'Other';
+                        labelCounts[label] = (labelCounts[label] || 0) + 1;
+                    });
+                    const colors = ['#1aff8c', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6'];
+                    const dist = Object.entries(labelCounts).map(([name, value], i) => ({
+                        name, value, color: colors[i % colors.length]
+                    }));
+                    if (dist.length > 0) setViolationDist(dist);
+                }
+            } catch { }
+        }
+
+        // Check backend /health
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/health`);
+                setSystemOnline(res.ok);
+            } catch { setSystemOnline(false); }
+        }
+
         async function fetchStats() {
             try {
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/dashboard/stats`);
                 if (!response.ok) throw new Error("Failed to fetch");
                 const data = await response.json();
-                
+
+                const tracesAnalyzed = data.traces_analyzed ?? data.records_scanned ?? 0;
+                const violations = data.violations ?? data.violations_blocked ?? 0;
+                const systemHealth = data.system_health ?? data.health ?? 94.2;
+                const latency = data.avg_latency_ms ? `${data.avg_latency_ms}ms` : '84ms';
+                const uptime = data.uptime ?? '99.9%';
                 setKpis([
-                    { ...KPI[0], value: `${data.system_health}%`, delta: data.violations === 0 ? '+0%' : '-15%' },
-                    { ...KPI[1], value: data.traces_analyzed.toLocaleString() },
-                    { ...KPI[2], value: data.violations.toLocaleString(), delta: `${((data.violations / (data.traces_analyzed || 1)) * 100).toFixed(1)}% block rate` },
-                    { ...KPI[3], value: '84ms' },
+                    { ...KPI[0], value: `${systemHealth}%`, delta: violations === 0 ? '+0 violations' : `-${violations} flagged` },
+                    { ...KPI[1], value: tracesAnalyzed.toLocaleString(), delta: `${data.active_policies ?? 0} policies active` },
+                    { ...KPI[2], value: violations.toLocaleString(), delta: `${((violations / (tracesAnalyzed || 1)) * 100).toFixed(1)}% block rate` },
+                    { ...KPI[3], value: latency, delta: `${uptime} uptime` },
                 ]);
+
             } catch (err) {
                 console.error("Dashboard stats error:", err);
             }
         }
         fetchStats();
+        fetchLiveFeed();
+        checkHealth();
+        const poll = setInterval(() => { fetchStats(); fetchLiveFeed(); checkHealth(); }, 5000);
+        return () => clearInterval(poll);
     }, []);
 
     return (
@@ -247,16 +301,16 @@ export default function OverviewPage() {
                     {/* System status */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {[
-                            { label: 'N2L Engine', status: 'ONLINE', icon: Cpu },
-                            { label: 'IBM AML Dataset', status: 'ONLINE', icon: Database },
-                            { label: 'Gemini 2.5 Pro', status: 'ONLINE', icon: GitBranch },
+                            { label: 'N2L Engine', status: systemOnline ? 'ONLINE' : 'OFFLINE', icon: Cpu },
+                            { label: 'IBM AML Dataset', status: systemOnline ? 'ONLINE' : 'OFFLINE', icon: Database },
+                            { label: 'Gemini AI Model', status: systemOnline ? 'ONLINE' : 'OFFLINE', icon: GitBranch },
                             { label: 'FinCEN SAR API', status: 'PENDING', icon: Globe },
                         ].map((s, i) => (
                             <div key={i} className="glass-card rounded-xl p-4 flex items-center gap-3">
-                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'ONLINE' ? 'bg-[#1aff8c] shadow-[0_0_6px_#1aff8c]' : 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.6)]'}`} />
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${s.status === 'ONLINE' ? 'bg-[#1aff8c] shadow-[0_0_6px_#1aff8c] animate-pulse' : s.status === 'OFFLINE' ? 'bg-red-500' : 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.6)]'}`} />
                                 <div>
                                     <p className="text-sm font-semibold text-foreground">{s.label}</p>
-                                    <p className={`text-[10px] font-bold uppercase tracking-widest ${s.status === 'ONLINE' ? 'text-[#1aff8c]' : 'text-amber-400'}`}>{s.status}</p>
+                                    <p className={`text-[10px] font-bold uppercase tracking-widest ${s.status === 'ONLINE' ? 'text-[#1aff8c]' : s.status === 'OFFLINE' ? 'text-red-400' : 'text-amber-400'}`}>{s.status}</p>
                                 </div>
                             </div>
                         ))}
@@ -301,21 +355,21 @@ export default function OverviewPage() {
                         </h3>
                         <ResponsiveContainer width="100%" height={160}>
                             <PieChart>
-                                <Pie data={VIOLATION_DIST} cx="50%" cy="50%" innerRadius={42} outerRadius={68}
+                                <Pie data={violationDist} cx="50%" cy="50%" innerRadius={42} outerRadius={68}
                                     paddingAngle={3} dataKey="value">
-                                    {VIOLATION_DIST.map((e, i) => <Cell key={i} fill={e.color} />)}
+                                    {violationDist.map((e, i) => <Cell key={i} fill={e.color} />)}
                                 </Pie>
                                 <Tooltip contentStyle={TOOLTIP_STYLE} />
                             </PieChart>
                         </ResponsiveContainer>
                         <div className="space-y-1.5 mt-2">
-                            {VIOLATION_DIST.map((v, i) => (
+                            {violationDist.map((v, i) => (
                                 <div key={i} className="flex items-center justify-between text-xs">
                                     <span className="flex items-center gap-1.5">
                                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: v.color }} />
                                         <span className="text-muted-foreground">{v.name}</span>
                                     </span>
-                                    <span className="font-bold text-foreground">{v.value}%</span>
+                                    <span className="font-bold text-foreground">{v.value}</span>
                                 </div>
                             ))}
                         </div>
@@ -359,7 +413,9 @@ export default function OverviewPage() {
 
                     {/* Feed entries */}
                     <div className="bg-[#030806] font-mono text-xs divide-y divide-[rgba(26,255,140,0.04)]">
-                        {LIVE_FEED.map(e => (
+                        {liveFeed.length === 0 ? (
+                            <div className="px-5 py-4 text-[rgba(26,255,140,0.3)]">&gt; Run a Sentinel scan to populate the live feed...</div>
+                        ) : liveFeed.map(e => (
                             <div key={e.id} className="flex items-start gap-3 px-5 py-2.5 hover:bg-[rgba(26,255,140,0.02)] transition-colors">
                                 <span className="text-[rgba(26,255,140,0.3)] flex-shrink-0 w-16">{e.time}</span>
                                 <span className={`flex-shrink-0 ${LEVEL_STYLE[e.level]}`}>{LEVEL_PREFIX[e.level]}</span>

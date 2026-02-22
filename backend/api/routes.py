@@ -10,6 +10,7 @@ from models.redteam import ThreatReport
 from services.ingest import PolicyIngestor
 from services.gemini import GeminiService
 from services.storage import policy_db
+from services.metrics import metrics_store
 from services.policy_engine import policy_engine
 import json
 import uuid
@@ -240,18 +241,108 @@ async def toggle_policy(policy_id: str):
     return updated
 
 
+
+@router.post("/policies/deploy-rules")
+async def deploy_rules(data: dict = Body(...)):
+    """
+    Receives synthesized rules from the Policy Vault N2L output and
+    saves each one as an active policy in the enforcement store.
+    The Sentinel scanner will immediately use these rules on the next scan.
+    """
+    rules = data.get("rules", [])
+    source = data.get("source", "Unknown Policy")
+    if not rules:
+        raise HTTPException(status_code=400, detail="No rules provided")
+
+    deployed = []
+    skipped  = []
+
+    for rule in rules:
+        rule_id   = rule.get("id", str(uuid.uuid4()))
+        rule_name = f"{rule.get('label', 'Rule')} [{rule.get('clause', '')}]"
+        logic     = rule.get("logic", "")
+        clause    = rule.get("clause", "")
+
+        # Skip PENDING rules (e.g. AML-R04 PII — needs manual sign-off)
+        if rule.get("status") == "PENDING":
+            skipped.append(rule_id)
+            continue
+
+        # Check if already exists → update, else create
+        existing = next(
+            (p for p in policy_db.get_all_policies() if p.id == rule_id),
+            None
+        )
+
+        now = datetime.datetime.now().isoformat()
+        if existing:
+            await asyncio.to_thread(
+                policy_db.update_policy,
+                rule_id,
+                {"is_active": True, "content": logic, "updated_at": now}
+            )
+        else:
+            new_policy = PolicyDocument(
+                id=rule_id,
+                name=rule_name,
+                content=logic,
+                summary=f"Synthesized from {source} — {clause}",
+                source_file=source or "Policy Vault",
+                is_active=True,
+                status="active",
+                created_at=now,
+            )
+            await asyncio.to_thread(policy_db.add_policy, new_policy)
+
+        deployed.append(rule_id)
+
+    return {
+        "status": "deployed",
+        "deployed_count": len(deployed),
+        "skipped_count": len(skipped),
+        "deployed_rules": deployed,
+        "skipped_rules": skipped,
+        "message": f"{len(deployed)} rules are now live in the Sentinel enforcement kernel.",
+    }
+
+
 @router.get("/dashboard/stats")
 async def get_dashboard_stats():
     """
-    Returns high-level system metrics for the dashboard.
+    Returns real system metrics for the dashboard KPI cards.
     """
+    import time
+    t0 = time.time()
+    base_stats = await asyncio.wait_for(asyncio.to_thread(policy_db.get_dashboard_stats), timeout=5.0)
+    latency_ms = round((time.time() - t0) * 1000)
+
+    # Merge live HITL violations from Sentinel scans
+    hitl_violations = policy_db.get_hitl_violations()
+    hitl_count = len(hitl_violations)
+
+    # Merge proxy traffic metrics
+    proxy_metrics = metrics_store.get_current_metrics()
+    proxy_violations = proxy_metrics.get("pg_blocks", 0)
+    proxy_requests  = proxy_metrics.get("total_requests", 0)
+
+    total_violations = base_stats.get("violations", 0) + proxy_violations + hitl_count
+    total_scanned    = base_stats.get("traces_analyzed", 0) + proxy_requests
+    active_policies  = base_stats.get("active_policies", 0)
+
+    health = 100
+    if total_violations > 0:
+        health = max(45, 100 - (total_violations * 3))
+
     return {
-        "connected_agents": 4,
-        "active_policies": 12,
-        "total_transactions": 15200,
-        "pending_violations": 5,
-        "fincen_status": "CONNECTED",
-        "siem_status": "CONNECTED"
+        "system_health":   health,
+        "traces_analyzed": total_scanned,
+        "violations":      total_violations,
+        "active_policies": active_policies,
+        "avg_latency_ms":  latency_ms,
+        "hitl_pending":    hitl_count,
+        "fincen_status":   "CONNECTED",
+        "siem_status":     "CONNECTED",
+        "uptime":          f"{proxy_metrics.get('uptime_percentage', 100.0):.1f}%",
     }
 
 @router.post("/webhook/mock")

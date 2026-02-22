@@ -38,11 +38,18 @@ export default function PoliciesPage() {
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+    const [deploying, setDeploying] = useState(false);
+    const [deployed, setDeployed] = useState(false);
+    const [deployLog, setDeployLog] = useState<string[]>([]);
+    const [deployResult, setDeployResult] = useState<{ deployed: number; skipped: number } | null>(null);
 
     const runSynthesis = async (filename: string) => {
         setSynthesizing(true);
         setSynthLog([]);
         setSynthComplete(false);
+        setDeployed(false);
+        setDeployLog([]);
+        setDeployResult(null);
         setSelectedTemplate(filename);
 
         for (const step of SYNTHESIS_STEPS) {
@@ -51,6 +58,64 @@ export default function PoliciesPage() {
         }
         setSynthesizing(false);
         setSynthComplete(true);
+    };
+
+    const handleDeploy = async () => {
+        setDeploying(true);
+        setDeployLog([]);
+        setDeployResult(null);
+
+        // Step-by-step animated deploy log
+        const steps = [
+            '⚙️  Loading Lexinel Enforcement Kernel...',
+            '🔗 Connecting to IBM AML Transaction Fabric...',
+            '📤 Pushing AML-R01, AML-R02, AML-R03 to active rule set...',
+            '🧪 Running rule validation...',
+        ];
+        for (const step of steps) {
+            await new Promise(r => setTimeout(r, 650 + Math.random() * 300));
+            setDeployLog(prev => [...prev, step]);
+        }
+
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/policies/deploy-rules`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rules: SYNTHESIZED_RULES_OUTPUT, source: selectedTemplate }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setDeployLog(prev => [
+                    ...prev,
+                    `✅ ${data.deployed_count} rules deployed to Sentinel enforcement kernel.`,
+                    data.skipped_count > 0
+                        ? `⏸️  ${data.skipped_count} rule(s) skipped (PENDING approval).`
+                        : '🛡️  All active rules are now live in the Sentinel.',
+                ]);
+                setDeployResult({ deployed: data.deployed_count, skipped: data.skipped_count });
+                setDeployed(true);
+            } else {
+                const err = await res.text();
+                setDeployLog(prev => [...prev, `❌ Deployment failed: ${res.status} — ${err}`]);
+            }
+        } catch {
+            setDeployLog(prev => [...prev, `❌ Network error — is the backend running on port 8000?`]);
+        } finally {
+            setDeploying(false);
+        }
+    };
+
+    const handleExport = () => {
+        const blob = new Blob(
+            [JSON.stringify({ source: selectedTemplate, rules: SYNTHESIZED_RULES_OUTPUT }, null, 2)],
+            { type: 'application/json' }
+        );
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `lexinel_rules_${(selectedTemplate || 'export').replace(/[^a-z0-9]/gi, '_')}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     const handleDrop = (e: React.DragEvent) => {
@@ -214,14 +279,58 @@ export default function PoliciesPage() {
                                 ))}
                             </div>
                             <div className="px-4 py-3 border-t border-[rgba(26,255,140,0.08)] flex gap-3">
-                                <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-[#070c0a] bg-[#1aff8c] hover:bg-[#0de87a] transition-all"
-                                    style={{ boxShadow: '0 0 12px rgba(26,255,140,0.3)' }}>
-                                    <Database className="w-4 h-4" /> Deploy to Sentinel
+                                <button
+                                    onClick={handleDeploy}
+                                    disabled={deploying || deployed}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-70"
+                                    style={deployed
+                                        ? { background: 'rgba(26,255,140,0.15)', color: '#1aff8c', border: '1px solid rgba(26,255,140,0.4)' }
+                                        : { background: '#1aff8c', color: '#070c0a', boxShadow: '0 0 12px rgba(26,255,140,0.3)' }
+                                    }
+                                >
+                                    {deploying ? (
+                                        <><Loader2 className="w-4 h-4 animate-spin" /> Deploying...</>
+                                    ) : deployed ? (
+                                        <><CheckCircle2 className="w-4 h-4" /> Deployed to Sentinel</>
+                                    ) : (
+                                        <><Database className="w-4 h-4" /> Deploy to Sentinel</>
+                                    )}
                                 </button>
-                                <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-[rgba(255,255,255,0.6)] border border-[rgba(255,255,255,0.1)] hover:border-[rgba(26,255,140,0.3)] transition-all">
+                                <button
+                                    onClick={handleExport}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-[rgba(255,255,255,0.6)] border border-[rgba(255,255,255,0.1)] hover:border-[rgba(26,255,140,0.3)] transition-all"
+                                >
                                     <Download className="w-4 h-4" /> Export Rules
                                 </button>
                             </div>
+
+                            {/* Deploy Log Terminal — visible during and after deploy */}
+                            {(deployLog.length > 0) && (
+                                <div className="border-t border-[rgba(26,255,140,0.08)] bg-[#030806] p-4 font-mono text-xs space-y-1">
+                                    <p className="text-[rgba(26,255,140,0.4)] text-[10px] uppercase tracking-widest mb-2">
+                                        ↳ Deployment Log
+                                    </p>
+                                    {deployLog.map((line, i) => (
+                                        <p key={i} className={
+                                            line.startsWith('✅') ? 'text-[#1aff8c] font-bold' :
+                                                line.startsWith('🛡️') ? 'text-[#1aff8c]' :
+                                                    line.startsWith('❌') ? 'text-red-400 font-bold' :
+                                                        line.startsWith('⏸️') ? 'text-amber-400' :
+                                                            'text-[rgba(26,255,140,0.55)]'
+                                        }>{line}</p>
+                                    ))}
+                                    {deploying && <p className="text-[#1aff8c] animate-pulse">▋</p>}
+                                    {deployResult && (
+                                        <div className="mt-3 pt-3 border-t border-[rgba(26,255,140,0.08)] flex items-center gap-4">
+                                            <span className="text-[#1aff8c] font-bold">{deployResult.deployed} rules live</span>
+                                            {deployResult.skipped > 0 && (
+                                                <span className="text-amber-400">{deployResult.skipped} pending</span>
+                                            )}
+                                            <span className="text-[rgba(255,255,255,0.3)] text-[10px]">→ Go to Sentinel to run a scan</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
